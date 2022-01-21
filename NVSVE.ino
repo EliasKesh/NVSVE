@@ -19,6 +19,7 @@
 // Tx Rx Vin   GND En GPIO00
 // GPIO00 to GND boot/program
 // sudo chmod a+rw /dev/ttyUSB0
+// Use sketch -> upload not upload to programmer.
 
 int potPin = 36; // Slider
 int rotPin = 39; // Rotary Knob
@@ -276,7 +277,7 @@ void loop() {
         else {
             digitalWrite(led_Blue, HIGH);
             Channel_SelectON = 0xc0; 
-            Channel_SelectOFF = 0xc0;
+            Channel_SelectOFF = 0;
             Channel_SelectCC = 0xb0;
 
             ROTARY();
@@ -326,14 +327,15 @@ void BUTTONS() {
                     pCharacteristic->notify();
                     OffNote[i] = ButtonNote;
                 }
-                else {
-                    midiPacket[2] = Channel_SelectOFF;
-                    Serial.println(Channel_SelectOFF);
-                    midiPacket[3] = OffNote[i];
-                    midiPacket[4] = 0;
-                    pCharacteristic->setValue(midiPacket, 5);
-                    pCharacteristic->notify();
-                }
+                else 
+                    if (Channel_SelectOFF) {
+                        midiPacket[2] = Channel_SelectOFF;
+                        Serial.println(Channel_SelectOFF);
+                        midiPacket[3] = OffNote[i];
+                        midiPacket[4] = 0;
+                        pCharacteristic->setValue(midiPacket, 5);
+                        pCharacteristic->notify();
+                    }
                 buttonPState[i] = buttonCstate[i];
             }
         }
@@ -341,6 +343,7 @@ void BUTTONS() {
 }
 
 void potaverage1() {
+    
     for (int p = 0; p < 15; p++) {
         rotCState = analogRead(rotPin);
         midiCState = map(rotCState, 0, 4095, 127, 0);
@@ -364,6 +367,7 @@ void potaverage1() {
 }
 
 void potaverage2() {
+
     for (int p = 0; p < 15; p++) {
         potCstate = analogRead(potPin);
         outputValue = map(potCstate, 0, 4095, 127, 0);
@@ -388,6 +392,7 @@ void potaverage2() {
 
 // Control Rotary Knob functions for Default + Split Mode
 void ROTARY() {
+
     potaverage1();
     if (average1 != lastaverage1) {
         rotMoving = true;
@@ -395,6 +400,7 @@ void ROTARY() {
     else {
         rotMoving = false;
     }
+
     if (rotMoving == true) {
         midiPacket[2] = Channel_SelectCC;
         Serial.println(Channel_SelectCC);
@@ -409,6 +415,7 @@ void ROTARY() {
 }
 
 void ROTARY2() {
+
     potaverage2();
     if (average2 != lastaverage2) {
         potMoving = true;
@@ -590,35 +597,6 @@ void LMODE() {
         }
     }
     else {
-        if (samplemode != 4) {
-          
-            digitalWrite(led_Green, LOW);
-            rotCState = analogRead(rotPin);
-            midiCState = map(rotCState, 0, 4095, 20, 600);
-            block_mode_switch = 1;
-            potaverage2();
-
-            if (average2 != lastaverage2) {
-                rotMoving = true;
-            }
-            else {
-                rotMoving = false;
-            }
-            
-            rotMoving = false;
-            if (rotMoving == true) {
-                midiPacket[2] = Channel_SelectCC;
-                Serial.println(Channel_SelectCC);
-                midiPacket[3] = 0x07;
-                Serial.println(0x07);
-                midiPacket[4] = average2;
-                Serial.println(average2);
-                pCharacteristic->setValue(midiPacket, 5);
-                pCharacteristic->notify();
-                lastaverage2 = average2;
-                checkPot = 1;
-            }
-        }
 
         for (int n = 0; n < buttonPushCounter; n++) {
             buttonCstate[i] = digitalRead(Buttonselect[i]);
@@ -666,14 +644,16 @@ void LMODE() {
             else {
                 delay(60000 / midiCState);
             }
+
             if (buttonCstate[0] == HIGH) {
                 buttonPushCounter = 0;
             }
+
             if (midiCState == 600) {
                 break;
             }
-        }
-    }
+        } // If samplemode != 4
+    } //Else
 }
 
 //Controls Returning to Main Menu (ran at the end of each mode)
