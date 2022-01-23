@@ -20,6 +20,9 @@
 // GPIO00 to GND boot/program
 // sudo chmod a+rw /dev/ttyUSB0
 // Use sketch -> upload not upload to programmer.
+// https://thisisnoiseinc.com/products/nmsve-order
+// BLE Example
+// https://rootsaid.com//arduino-ble-example/
 
 int potPin = 36; // Slider
 int rotPin = 39; // Rotary Knob
@@ -77,6 +80,7 @@ int Menu_enter = 0; // Clears Loop Mode array & Causes 1 second delay when switc
 int Delay_DefaultModeSelection = 1; // delays/debounces selection of channel for default mode
 int block_mode_switch = 0;
 int loop_enter_menu = 0;
+int Loop_Count = 0;
 
 BLECharacteristic *pCharacteristic;
 bool deviceConnected = false;
@@ -95,6 +99,46 @@ class MyServerCallbacks: public BLEServerCallbacks {
 
     void onDisconnect(BLEServer* pServer) {
         deviceConnected = false;
+    }
+};
+
+/**
+ * MyServerCallbacks
+ * Callbacks for client write requests
+ * https://gist.github.com/beegee-tokyo/993b250bae96554f0f5066ca554eec3f
+ */
+class MyCallbackHandler: public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *pCharacteristic) {
+    std::string value = pCharacteristic->getValue();
+    int len = value.length();
+
+    if (value.length() > 0) {
+/*
+      Serial.println("*********");
+      Serial.print((value[1]),HEX);
+      Serial.print(" ");
+      Serial.print((value[2]),HEX);
+      Serial.print(" ");
+      Serial.print((value[3]),HEX);
+      Serial.print(" ");
+*/
+      // Check if Channel 10
+      if (value.length() >2)
+          if (value[2] == 0xb9) {
+/*            Serial.print((value[3]),HEX);
+*/
+            if (value[4] == 0x6) {
+              digitalWrite(led_Blue, HIGH);
+              Loop_Count = 15;
+            }
+            
+            if (value[4] == 0x8) {
+              digitalWrite(led_Green, HIGH);
+              Loop_Count = 15;
+            } 
+          }
+      }
+      Serial.println();
     }
 };
 
@@ -130,6 +174,9 @@ void setup() {
     BLEAdvertising *pAdvertising = pServer->getAdvertising();
     pAdvertising->addServiceUUID(pService->getUUID());
     pAdvertising->start();
+
+
+    pCharacteristic->setCallbacks(new MyCallbackHandler());
 
     // Initialize buttons + LED's
     for (int i = 0; i < button; i++) {
@@ -197,7 +244,23 @@ void MAINMENU() {
 void loop() {
     
     MAINMENU();
-    
+
+#if 0    
+    // Read Bluetooth
+    pService.poll()
+    if (pService.valueUpdated()) {
+      // yes, get the value, characteristic is 1 byte so use byte value
+      byte value = 0;
+
+      pService.readValue(value);
+
+      Serial.println("Right button pressed");
+      Serial.println(value);
+    }
+
+    pCharacteristic->getValue(midiPacket, 5);
+#endif
+
     // ejk force for now.
     samplemode = 4;
     
@@ -236,7 +299,7 @@ void loop() {
             digitalWrite(led_Blue, HIGH);
             Channel_SelectCC = 176;
             if (Menu_enter == 1) {
-                digitalWrite(led_Green, HIGH);
+               digitalWrite(led_Green, HIGH);
                 delay(500);
                 Menu_enter = 0;
             }
@@ -275,7 +338,16 @@ void loop() {
         }
         // Enter Loop Mode
         else {
-            digitalWrite(led_Blue, HIGH);
+            
+            if (Loop_Count) {
+              Loop_Count--;
+
+              if (Loop_Count == 0) {
+              digitalWrite(led_Blue, LOW);
+              digitalWrite(led_Green, LOW);
+              }
+            }
+ 
             Channel_SelectON = 0xc0; 
             Channel_SelectOFF = 0;
             Channel_SelectCC = 0xb0;
@@ -299,12 +371,12 @@ void BUTTONS() {
         potCstate = analogRead(potPin);
         outputValue = map(potCstate, 0, 4095, 3, 9);
         if (samplemode == 4)
-          ButtonNote = (i + 1);
+          ButtonNote = (i);
         else
           ButtonNote = (outputValue * 12 + i);
 
         if (outputValue == 3 || outputValue == 5 || outputValue == 7 || outputValue == 9) {
-            digitalWrite(led_Green, HIGH);
+ // ejk           digitalWrite(led_Green, HIGH);
         }
         else {
             digitalWrite(led_Green, LOW);
@@ -394,20 +466,29 @@ void potaverage2() {
 void ROTARY() {
 
     potaverage1();
-    if (average1 != lastaverage1) {
-        rotMoving = true;
-    }
-    else {
+    rotMoving = true;
+    
+    if (average1 == lastaverage1) {
         rotMoving = false;
     }
-
-    if (rotMoving == true) {
+ 
+    if (average1 == (lastaverage1 - 1)) {
+        rotMoving = false;
+    }
+ 
+    if (average1 == (lastaverage1 + 1)) {
+        rotMoving = false;
+    }
+ 
+     if (rotMoving == true) {
         midiPacket[2] = Channel_SelectCC;
+        Serial.println("----------");
         Serial.println(Channel_SelectCC);
         midiPacket[3] = 0x01;
         Serial.println(0x01);
         midiPacket[4] = average1;
         Serial.println(average1);
+        Serial.println(lastaverage1);
         pCharacteristic->setValue(midiPacket, 5);
         pCharacteristic->notify();
         lastaverage1 = average1;
@@ -417,13 +498,20 @@ void ROTARY() {
 void ROTARY2() {
 
     potaverage2();
-    if (average2 != lastaverage2) {
-        potMoving = true;
-    }
-    else {
+    potMoving = true;
+    
+    if (average2 == lastaverage2) {
         potMoving = false;
     }
-
+ 
+    if (average2 == (lastaverage2 - 1)) {
+        potMoving = false;
+    }
+ 
+    if (average2 == (lastaverage2 + 1)) {
+        potMoving = false;
+    }
+ 
     if (potMoving == true) {
         midiPacket[2] = Channel_SelectCC;
         Serial.println(Channel_SelectCC);
@@ -534,7 +622,7 @@ void LMODE() {
             rotCState = analogRead(rotPin);
             midiCState = map(rotCState, 0, 4095, 20, 600);
             if (outputValue == 3 || outputValue == 5 || outputValue == 7 || outputValue == 9) {
-                digitalWrite(led_Green, HIGH);
+ // ejk               digitalWrite(led_Green, HIGH);
             }
             else {
                 digitalWrite(led_Green, LOW);
