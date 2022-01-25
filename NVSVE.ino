@@ -108,37 +108,36 @@ class MyServerCallbacks: public BLEServerCallbacks {
  * https://gist.github.com/beegee-tokyo/993b250bae96554f0f5066ca554eec3f
  */
 class MyCallbackHandler: public BLECharacteristicCallbacks {
-  void onWrite(BLECharacteristic *pCharacteristic) {
-    std::string value = pCharacteristic->getValue();
-    int len = value.length();
+    void onWrite(BLECharacteristic *pCharacteristic) {
+        std::string value = pCharacteristic->getValue();
+        int len = value.length();
 
-    if (value.length() > 0) {
-/*
-      Serial.println("*********");
-      Serial.print((value[1]),HEX);
-      Serial.print(" ");
-      Serial.print((value[2]),HEX);
-      Serial.print(" ");
-      Serial.print((value[3]),HEX);
-      Serial.print(" ");
-*/
-      // Check if Channel 10
-      if (value.length() >2)
-          if (value[2] == 0xb9) {
-/*            Serial.print((value[3]),HEX);
-*/
-            if (value[4] == 0x6) {
-              digitalWrite(led_Blue, HIGH);
-              Loop_Count = 15;
-            }
-            
-            if (value[4] == 0x8) {
-              digitalWrite(led_Green, HIGH);
-              Loop_Count = 15;
-            } 
-          }
-      }
-      Serial.println();
+        if (value.length() > 0) {
+            /*
+                  Serial.println("*********");
+                  Serial.print((value[1]),HEX);
+                  Serial.print(" ");
+                  Serial.print((value[2]),HEX);
+                  Serial.print(" ");
+                  Serial.print((value[3]),HEX);
+                  Serial.print(" ");
+            */
+            // Check if Channel 10
+            if (value.length() > 2)
+                if (value[2] == 0xb9) {
+
+                    if (value[4] == 0x6) {
+                        digitalWrite(led_Blue, HIGH);
+                        Loop_Count = 15;
+                    }
+
+                    if (value[4] == 0x8) {
+                        digitalWrite(led_Green, HIGH);
+                        Loop_Count = 15;
+                    }
+                }
+        }
+        Serial.println();
     }
 };
 
@@ -196,6 +195,7 @@ void MAINMENU() {
         buttonCstate[0] = digitalRead(Buttonselect[0]);
         buttonCstate[1] = digitalRead(Buttonselect[1]);
         buttonCstate[2] = digitalRead(Buttonselect[2]);
+        buttonCstate[3] = digitalRead(Buttonselect[3]);
         if (buttonCstate[0] == HIGH) {
             selectpause = 1;
         }
@@ -242,28 +242,12 @@ void MAINMENU() {
 
 // After Initial Main Menu go to Loop and run through 1 of 3 MODES.
 void loop() {
-    
+
     MAINMENU();
 
-#if 0    
-    // Read Bluetooth
-    pService.poll()
-    if (pService.valueUpdated()) {
-      // yes, get the value, characteristic is 1 byte so use byte value
-      byte value = 0;
-
-      pService.readValue(value);
-
-      Serial.println("Right button pressed");
-      Serial.println(value);
-    }
-
-    pCharacteristic->getValue(midiPacket, 5);
-#endif
-
     // ejk force for now.
-    samplemode = 4;
-    
+//    samplemode = 4;
+
     // Ensure device is connected to BLE
     while (samplemode == 1) {
         if (deviceConnected == false) {
@@ -299,7 +283,7 @@ void loop() {
             digitalWrite(led_Blue, HIGH);
             Channel_SelectCC = 176;
             if (Menu_enter == 1) {
-               digitalWrite(led_Green, HIGH);
+                digitalWrite(led_Green, HIGH);
                 delay(500);
                 Menu_enter = 0;
             }
@@ -338,25 +322,23 @@ void loop() {
         }
         // Enter Loop Mode
         else {
-            
-            if (Loop_Count) {
-              Loop_Count--;
 
-              if (Loop_Count == 0) {
-              digitalWrite(led_Blue, LOW);
-              digitalWrite(led_Green, LOW);
-              }
+            if (Loop_Count) {
+                Loop_Count--;
+
+                if (Loop_Count == 0) {
+                    digitalWrite(led_Blue, LOW);
+                    digitalWrite(led_Green, LOW);
+                }
             }
- 
-            Channel_SelectON = 0xc0; 
+
+            Channel_SelectON = 0xc0;
             Channel_SelectOFF = 0;
             Channel_SelectCC = 0xb0;
 
             ROTARY();
             ROTARY2();
             BUTTONS();
-            LMODE();
-            MENURETURN();
         }
     }
 
@@ -370,20 +352,22 @@ void BUTTONS() {
         buttonCstate[i] = digitalRead(Buttonselect[i]);
         potCstate = analogRead(potPin);
         outputValue = map(potCstate, 0, 4095, 3, 9);
-        if (samplemode == 4)
-          ButtonNote = (i);
-        else
-          ButtonNote = (outputValue * 12 + i);
-
-        if (outputValue == 3 || outputValue == 5 || outputValue == 7 || outputValue == 9) {
- // ejk           digitalWrite(led_Green, HIGH);
+        if (samplemode == 4) {
+            ButtonNote = (i);
         }
         else {
-            digitalWrite(led_Green, LOW);
-        }
+            ButtonNote = (outputValue * 12 + i);
 
-        if (Menu_enter == 1) {
-            digitalWrite(led_Green, LOW);
+            if (outputValue == 3 || outputValue == 5 || outputValue == 7 || outputValue == 9) {
+                digitalWrite(led_Green, HIGH);
+            }
+            else {
+                digitalWrite(led_Green, LOW);
+            }
+
+            if (Menu_enter == 1) {
+                digitalWrite(led_Green, LOW);
+            }
         }
 
         if ((millis() - lastDebounceTime[i]) > debounceDelay) {
@@ -399,7 +383,7 @@ void BUTTONS() {
                     pCharacteristic->notify();
                     OffNote[i] = ButtonNote;
                 }
-                else 
+                else
                     if (Channel_SelectOFF) {
                         midiPacket[2] = Channel_SelectOFF;
                         Serial.println(Channel_SelectOFF);
@@ -415,7 +399,7 @@ void BUTTONS() {
 }
 
 void potaverage1() {
-    
+
     for (int p = 0; p < 15; p++) {
         rotCState = analogRead(rotPin);
         midiCState = map(rotCState, 0, 4095, 127, 0);
@@ -467,20 +451,20 @@ void ROTARY() {
 
     potaverage1();
     rotMoving = true;
-    
+
     if (average1 == lastaverage1) {
         rotMoving = false;
     }
- 
+
     if (average1 == (lastaverage1 - 1)) {
         rotMoving = false;
     }
- 
+
     if (average1 == (lastaverage1 + 1)) {
         rotMoving = false;
     }
- 
-     if (rotMoving == true) {
+
+    if (rotMoving == true) {
         midiPacket[2] = Channel_SelectCC;
         Serial.println("----------");
         Serial.println(Channel_SelectCC);
@@ -499,19 +483,19 @@ void ROTARY2() {
 
     potaverage2();
     potMoving = true;
-    
+
     if (average2 == lastaverage2) {
         potMoving = false;
     }
- 
+
     if (average2 == (lastaverage2 - 1)) {
         potMoving = false;
     }
- 
+
     if (average2 == (lastaverage2 + 1)) {
         potMoving = false;
     }
- 
+
     if (potMoving == true) {
         midiPacket[2] = Channel_SelectCC;
         Serial.println(Channel_SelectCC);
@@ -622,7 +606,7 @@ void LMODE() {
             rotCState = analogRead(rotPin);
             midiCState = map(rotCState, 0, 4095, 20, 600);
             if (outputValue == 3 || outputValue == 5 || outputValue == 7 || outputValue == 9) {
- // ejk               digitalWrite(led_Green, HIGH);
+                digitalWrite(led_Green, HIGH);
             }
             else {
                 digitalWrite(led_Green, LOW);
